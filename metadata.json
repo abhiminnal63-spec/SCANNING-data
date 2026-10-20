@@ -1,0 +1,6 @@
+{
+  "name": "ID Card Scanner",
+  "description": "Production-quality ID card scanning, candidate validation, perspective correction, dynamic extraction, and printed photo isolation powered by Gemini Vision.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
