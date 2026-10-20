@@ -1,6 +1,7 @@
 import { IdCardScanResult, DetectionResult } from '../types/idcard';
 import { defaultIdCardDetector } from './idCardDetector';
 import { cropAndEnhanceCard, extractPrintedPhotoCrop } from '../utils/imageProcessing';
+import { extractPrintedPortrait } from '../utils/portraitExtractor';
 import { analyzeIdCard } from './geminiService';
 
 export interface ProcessIdCardOptions {
@@ -96,11 +97,19 @@ export async function processIdCard(
   scanResult.originalImageUrl = originalImageUrl;
   scanResult.qualityReport = detection.quality;
 
-  // If server didn't provide photo crop, try local canvas crop if photo bounding box exists
-  if (!scanResult.photoCropUrl && scanResult.photoBoundingBox) {
-    const localCrop = extractPrintedPhotoCrop(enhancedCanvas, scanResult.photoBoundingBox);
-    if (localCrop) {
-      scanResult.photoCropUrl = localCrop;
+  // Use robust portraitExtractor (FaceDetector, CV color analysis, Gemini box refinement)
+  // strictly rejecting whole-card or empty crops
+  if (!scanResult.photoCropUrl) {
+    try {
+      const portraitRes = await extractPrintedPortrait(enhancedCanvas, scanResult.photoBoundingBox);
+      if (portraitRes.success && portraitRes.photoUrl) {
+        scanResult.photoCropUrl = portraitRes.photoUrl;
+        if (portraitRes.boundingBox) {
+          scanResult.photoBoundingBox = portraitRes.boundingBox;
+        }
+      }
+    } catch (e) {
+      console.warn('[scannerPipeline] Portrait extraction fallback warning:', e);
     }
   }
 

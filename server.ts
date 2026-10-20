@@ -256,31 +256,41 @@ Return only valid JSON.`;
           xmax = xmax / imgW;
         }
 
-        // Normalized 0..1 to pixel bounds with safe padding
-        ymin = Math.max(0, Math.min(0.9, ymin));
-        xmin = Math.max(0, Math.min(0.9, xmin));
-        ymax = Math.max(ymin + 0.05, Math.min(1.0, ymax));
-        xmax = Math.max(xmin + 0.05, Math.min(1.0, xmax));
+        const pw = xmax - xmin;
+        const ph = ymax - ymin;
+        const pArea = pw * ph;
 
-        const marginX = (xmax - xmin) * 0.04;
-        const marginY = (ymax - ymin) * 0.04;
+        // Reject whole-card crops or oversized regions
+        const isValidPortrait = pw >= 0.08 && pw <= 0.65 && ph >= 0.10 && ph <= 0.75 && pArea <= 0.40 && pArea >= 0.015;
 
-        const left = Math.round(Math.max(0, (xmin - marginX) * imgW));
-        const top = Math.round(Math.max(0, (ymin - marginY) * imgH));
-        const width = Math.round(Math.min(imgW - left, (xmax - xmin + marginX * 2) * imgW));
-        const height = Math.round(Math.min(imgH - top, (ymax - ymin + marginY * 2) * imgH));
+        if (isValidPortrait) {
+          // Normalized 0..1 to pixel bounds with safe padding
+          ymin = Math.max(0, Math.min(0.9, ymin));
+          xmin = Math.max(0, Math.min(0.9, xmin));
+          ymax = Math.max(ymin + 0.05, Math.min(1.0, ymax));
+          xmax = Math.max(xmin + 0.05, Math.min(1.0, xmax));
 
-        if (width > 20 && height > 20) {
-          const croppedBuffer = await sharp(imageBuffer)
-            .extract({ left, top, width, height })
-            .resize({ width: 320, withoutEnlargement: false })
-            .jpeg({ quality: 92 })
-            .toBuffer();
+          const marginX = (xmax - xmin) * 0.04;
+          const marginY = (ymax - ymin) * 0.04;
 
-          photoCropUrl = `data:image/jpeg;base64,${croppedBuffer.toString('base64')}`;
+          const left = Math.round(Math.max(0, (xmin - marginX) * imgW));
+          const top = Math.round(Math.max(0, (ymin - marginY) * imgH));
+          const width = Math.round(Math.min(imgW - left, (xmax - xmin + marginX * 2) * imgW));
+          const height = Math.round(Math.min(imgH - top, (ymax - ymin + marginY * 2) * imgH));
+
+          if (width > 30 && height > 30) {
+            const croppedBuffer = await sharp(imageBuffer)
+              .extract({ left, top, width, height })
+              .jpeg({ quality: 94 })
+              .toBuffer();
+
+            photoCropUrl = `data:image/jpeg;base64,${croppedBuffer.toString('base64')}`;
+          }
+        } else {
+          console.warn('[Gemini Service] Rejected invalid photo box (whole card or out of bounds):', { pw, ph, pArea });
         }
       } catch (cropErr) {
-        console.warn('[Gemini Service] Server photo crop failed (client fallback will handle):', cropErr);
+        console.warn('[Gemini Service] Server photo crop failed:', cropErr);
       }
     }
 
